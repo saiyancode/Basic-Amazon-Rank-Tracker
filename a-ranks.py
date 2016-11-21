@@ -11,10 +11,12 @@ from concurrent.futures import ThreadPoolExecutor
 import sqlite3 as sql
 import time
 import os
+from selenium import webdriver
 
 #Settings
-directory = '/Users/willcecil/Desktop/Amazon-Scraper/Amazon-Scraper'
-os.chdir(directory)
+# directory = '/Users/willcecil/Desktop/Amazon-Scraper/Amazon-Scraper'
+# os.chdir(directory)
+
 unix = int(time.time())
 date = str(datetime.datetime.fromtimestamp(unix).strftime('%Y-%m-%d'))
 keyword = [line.rstrip('\n') for line in open('keywords.txt')]
@@ -34,17 +36,18 @@ def create_table():
 # Not Working Need to use headless Browser
 def ranks():
 	for i in keywords:
-		userAgent = choice(AgentList)
-		headers = {'User-Agent':userAgent}
-		response = requests.get('https://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords'+i,headers=headers,timeout=50)
-		page_text = response.text.encode('utf-8')
-		print(page_text)
+		driver = webdriver.Chrome(executable_path=r'C:\Users\w.cecil\Python35\chromedriver.exe')
+		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
+		url = 'https://www.amazon.com/s/url=search-alias%3Daps&field-keywords='+i
+		driver.get(url)
+		time.sleep(5)
+		soup = BeautifulSoup(driver.page_source)
+		print("Opening this page " + 'https://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
 		try:
-			soup = BeautifulSoup(page_text, 'html')
-			results = soup.findAll(attrs={"id" : "s-results-list-atf"})
-			print(len(results))
+		    results = soup.findAll(attrs={"id" : "s-results-list-atf"})
+		    print(results)
 
 		except Exception as e:
-			print(e)
-
+		    print(e)
+		driver.quit()
 ranks()
