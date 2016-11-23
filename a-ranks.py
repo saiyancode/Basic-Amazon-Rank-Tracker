@@ -12,6 +12,7 @@ import sqlite3 as sql
 import time
 import os
 from selenium import webdriver
+import re
 
 #Settings
 # directory = '/Users/willcecil/Desktop/Amazon-Scraper/Amazon-Scraper'
@@ -30,24 +31,58 @@ conn = sql.connect(r'Rankings.db')
 c = conn.cursor()
 
 def create_table():
-    c.execute("CREATE TABLE IF NOT EXISTS amazon_rankings(unix REAL, datestamp TEXT, title TEXT, description TEXT, status REAL, canonical TEXT, h1 TEXT, meta_robots TEXT, accessibility TEXT, body TEXT, hreflang TEXT)")
-#create_table()
+    c.execute("CREATE TABLE IF NOT EXISTS amazon_rankings(datestamp TEXT, title TEXT, stars REAL, ASIN TEXT, Url TEXT, Prime TEXT)")
+create_table()
+
+# def prime(soup):
+
+# def stars(soup):
+
+
 
 # Not Working Need to use headless Browser
 def ranks():
 	for i in keywords:
-		driver = webdriver.Chrome(executable_path=r'C:\Users\w.cecil\Python35\chromedriver.exe')
+		#driver = webdriver.Chrome(executable_path=r'C:\Users\w.cecil\Python35\chromedriver.exe')
+		driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
 		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
-		url = 'https://www.amazon.com/s/url=search-alias%3Daps&field-keywords='+i
+		url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords='+i
 		driver.get(url)
 		time.sleep(5)
 		soup = BeautifulSoup(driver.page_source)
-		print("Opening this page " + 'https://www.amazon.com/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
+		print("Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
+		# try:
+		# 	NAME = '//*[@id="result_0"]/div/div[3]/div[1]/a/h2//text()'
+
+		# 	RAW_NAME = driver.get_element_by_xpath(NAME)
+
 		try:
-		    results = soup.findAll(attrs={"id" : "s-results-list-atf"})
-		    print(results)
+		    results = soup.findAll('div',attrs={'class':'s-item-container'})
+		    print(len(results))
+		    #print(results)
+		    for a,b in enumerate(results):
+		    	#print(b)
+		    	soup = b
+		    	header = soup.find('h2')
+		    	result = a
+		    	title = header.text.encode('utf-8')
+		    	link = soup.find('a',attrs={'class':'a-link-normal s-access-detail-page  a-text-normal'})
+		    	url = link['href']
+		    	print(title)
+		    	print(url)
+		    	price = None
+		    	link = None
+		    	ASIN =None
+		    	PRIME = None
+		    	stars = None
+		    	# c.execute("INSERT INTO amazon_rankings VALUES (?, ?, ?,?, ?, ?)",
+       #                    (date, title, stars, ASIN, result, PRIME))
 
 		except Exception as e:
 		    print(e)
 		driver.quit()
+
+
+
 ranks()
+conn.close()
