@@ -2,7 +2,6 @@ from random import choice
 import requests
 from requests.auth import HTTPBasicAuth
 from bs4 import BeautifulSoup
-import csv
 import datetime
 import pandas as pd
 import numpy as np
@@ -10,13 +9,9 @@ import pandas.io.sql as pd_sql
 from concurrent.futures import ThreadPoolExecutor
 import sqlite3 as sql
 import time
-import os
 from selenium import webdriver
 import re
 
-#Settings
-# directory = '/Users/willcecil/Desktop/Amazon-Scraper/Amazon-Scraper'
-# os.chdir(directory)
 
 unix = int(time.time())
 date = str(datetime.datetime.fromtimestamp(unix).strftime('%Y-%m-%d'))
@@ -31,30 +26,20 @@ conn = sql.connect(r'Rankings.db')
 c = conn.cursor()
 
 def create_table():
-    c.execute("CREATE TABLE IF NOT EXISTS amazon_rankings(datestamp TEXT, title TEXT, stars REAL, ASIN TEXT, Url TEXT, Prime TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS amazon_rankings(datestamp TEXT, unix TEXT, Keyword TEXT, title TEXT, stars REAL, ASIN TEXT, rank TEXT, url TEXT, Prime TEXT)")
 create_table()
 
-# def prime(soup):
-
-# def stars(soup):
-
-
-
-# Not Working Need to use headless Browser
 def ranks():
 	for i in keywords:
 		#driver = webdriver.Chrome(executable_path=r'C:\Users\w.cecil\Python35\chromedriver.exe')
 		driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
+		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
 		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
 		url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords='+i
 		driver.get(url)
 		time.sleep(5)
 		soup = BeautifulSoup(driver.page_source)
 		print("Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
-		# try:
-		# 	NAME = '//*[@id="result_0"]/div/div[3]/div[1]/a/h2//text()'
-
-		# 	RAW_NAME = driver.get_element_by_xpath(NAME)
 
 		try:
 		    results = soup.findAll('div',attrs={'class':'s-item-container'})
@@ -64,12 +49,11 @@ def ranks():
 		    	#print(b)
 		    	soup = b
 		    	header = soup.find('h2')
-		    	result = a
+		    	result = a + 1
 		    	title = header.text.encode('utf-8')
 		    	link = soup.find('a',attrs={'class':'a-link-normal s-access-detail-page  a-text-normal'})
 		    	url = link['href']
 		    	url = re.sub(r'/ref=.*', '',str(url))
-
 
 		    	# Extract the ASIN from the URL
 		    	ASIN = re.sub(r'.*amazon.co.uk.*/dp/', '',str(url))
@@ -77,30 +61,41 @@ def ranks():
 		    	# Extract Score Data using ASIN number to find the span class
 
 		    	score = soup.find('span',attrs={'name':ASIN})
-		    	score = score.text
-		    	score = score.strip('\n')
-		    	score = re.sub(r' .*', '',str(score))
-		    	print(score)
+		    	try:
+		    		score = score.text
+		    		score = score.strip('\n')
+		    		score = re.sub(r' .*', '',str(score))
+		    	except:
+		    		score = None
 
 		    	# Extract Number of Reviews in the same way
-		    	reviews = soup.find('a', attrs={'href', re.compile(r'.*#customerReviews')})
-		    	reviews = reviews.text
+		    	reviews = soup.find('a', href=re.compile(r'.*#customerReviews'))
+		    	try:
+		    		reviews = reviews.text
+		    	except:
+		    		reviews = None
 
+		    	# And again for Prime
+
+		    	PRIME = soup.find('i',attrs={'aria-label':'Prime'})
+		    	try:
+		    		PRIME = PRIME.text
+		    	except:
+		    		PRIME = None
 
 		    	# Test Statements
-		    	print(title)
-		    	print(url)
-		    	print(ASIN)
-		    	print(reviews)
-
-		    	# c.execute("INSERT INTO amazon_rankings VALUES (?, ?, ?,?, ?, ?)",
-       #                    (date, title, stars, ASIN, result, PRIME))
-
+		    	# print(title.decode('utf-8'))
+		    	# print(url)
+		    	# print(ASIN)
+		    	# print(reviews)
+		    	# print(prime)
+		    	c.execute("INSERT INTO amazon_rankings VALUES (?,?, ?, ?,?, ?, ?,?,?)",
+                          (date, unix, i ,title, score, ASIN, result, url, PRIME))
+		    	conn.commit()
 		except Exception as e:
 		    print(e)
 		driver.quit()
 
-
-
 ranks()
+
 conn.close()
