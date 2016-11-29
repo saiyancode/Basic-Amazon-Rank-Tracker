@@ -68,13 +68,31 @@ def ranks():
 		    	title = header.text.encode('utf-8')
 		    	link = soup.find('a',attrs={'class':'a-link-normal s-access-detail-page  a-text-normal'})
 		    	url = link['href']
+		    	url = re.sub(r'/ref=.*', '',str(url))
+
+
+		    	# Extract the ASIN from the URL
+		    	ASIN = re.sub(r'.*amazon.co.uk.*/dp/', '',str(url))
+
+		    	# Extract Score Data using ASIN number to find the span class
+
+		    	score = soup.find('span',attrs={'name':ASIN})
+		    	score = score.text
+		    	score = score.strip('\n')
+		    	score = re.sub(r' .*', '',str(score))
+		    	print(score)
+
+		    	# Extract Number of Reviews in the same way
+		    	reviews = soup.find('a', attrs={'href', re.compile(r'.*#customerReviews')})
+		    	reviews = reviews.text
+
+
+		    	# Test Statements
 		    	print(title)
 		    	print(url)
-		    	price = None
-		    	link = None
-		    	ASIN =None
-		    	PRIME = None
-		    	stars = None
+		    	print(ASIN)
+		    	print(reviews)
+
 		    	# c.execute("INSERT INTO amazon_rankings VALUES (?, ?, ?,?, ?, ?)",
        #                    (date, title, stars, ASIN, result, PRIME))
 
