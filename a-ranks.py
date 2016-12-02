@@ -11,6 +11,7 @@ import sqlite3 as sql
 import time
 from selenium import webdriver
 import re
+from collections import defaultdict
 
 
 unix = int(time.time())
@@ -22,12 +23,14 @@ AgentList = ["Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, lik
              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/601.6.17 (KHTML, like Gecko) Version/9.1.1 Safari/601.6.17",
              "Mozilla/5.0 (X11; U; Linux x86_64; de; rv:1.9.2.8) Gecko/20100723 Ubuntu/10.04 (lucid) Firefox/3.6.8",
              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:34.0) Gecko/20100101 Firefox/34.0"]
-conn = sql.connect(r'Rankings.db')
+conn = sql.connect(r'Rankings-multi.db')
 c = conn.cursor()
 
 def create_table():
-    c.execute("CREATE TABLE IF NOT EXISTS amazon_rankings(datestamp TEXT, unix TEXT, Keyword TEXT, title TEXT, stars REAL, ASIN TEXT, rank TEXT, url TEXT, Prime TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS multi(datestamp TEXT, unix TEXT, Keyword TEXT, title TEXT, stars REAL, ASIN TEXT, rank TEXT, url TEXT, Prime TEXT)")
 create_table()
+
+data = defaultdict(list)
 
 def ranks():
 	for i in keywords:
@@ -37,7 +40,7 @@ def ranks():
 		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
 		url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords='+i
 		driver.get(url)
-		time.sleep(5)
+		time.sleep(10)
 		soup = BeautifulSoup(driver.page_source)
 		print("Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
 
@@ -89,7 +92,20 @@ def ranks():
 		    	# print(ASIN)
 		    	# print(reviews)
 		    	# print(prime)
-		    	c.execute("INSERT INTO amazon_rankings VALUES (?,?, ?, ?,?, ?, ?,?,?)",
+
+		    	# Save to dict for multithreading test
+
+		    	data['Date'].append(date)
+		    	data['Unix'].append(unix)
+		    	data['Keyword'].append(i)
+		    	data['Title'].append(title)
+		    	data['Review_Score'].append(score)
+		    	data['ASIN'].append(ASIN)
+		    	data['Rank'].append(result)
+		    	data['URL'].append(url)
+		    	data['Prime'].append(PRIME)
+
+		    	c.execute("INSERT INTO multi VALUES (?,?, ?, ?,?, ?, ?,?,?)",
                           (date, unix, i ,title, score, ASIN, result, url, PRIME))
 		    	conn.commit()
 		except Exception as e:
@@ -97,5 +113,5 @@ def ranks():
 		driver.quit()
 
 ranks()
-
+print(data)
 conn.close()
