@@ -3,15 +3,21 @@ import requests
 from requests.auth import HTTPBasicAuth
 from bs4 import BeautifulSoup
 import datetime
-import pandas as pd
-import numpy as np
-import pandas.io.sql as pd_sql
 from concurrent.futures import ThreadPoolExecutor
 import sqlite3 as sql
 import time
 from selenium import webdriver
 import re
 from collections import defaultdict
+import pymongo
+from pymongo import MongoClient
+from threading import Thread
+
+# Mongo Settings
+
+client = MongoClient('localhost', 27017)
+db = client.test_database
+collection = db.test_collection
 
 
 unix = int(time.time())
@@ -32,86 +38,90 @@ create_table()
 
 data = defaultdict(list)
 
-def ranks():
-	for i in keywords:
-		#driver = webdriver.Chrome(executable_path=r'C:\Users\w.cecil\Python35\chromedriver.exe')
-		driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
-		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
-		#driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
-		url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords='+i
-		driver.get(url)
-		time.sleep(10)
-		soup = BeautifulSoup(driver.page_source)
-		print("Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
+def ranks(i):
+	#driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
+	driver = webdriver.PhantomJS(executable_path='/Users/willcecil/Dropbox/Python/phantomjs')
+	url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords='+i
+	driver.get(url)
+	time.sleep(1)
+	soup = BeautifulSoup(driver.page_source)
+	print("Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
 
-		try:
-		    results = soup.findAll('div',attrs={'class':'s-item-container'})
-		    print(len(results))
-		    #print(results)
-		    for a,b in enumerate(results):
-		    	#print(b)
-		    	soup = b
-		    	header = soup.find('h2')
-		    	result = a + 1
-		    	title = header.text.encode('utf-8')
-		    	link = soup.find('a',attrs={'class':'a-link-normal s-access-detail-page  a-text-normal'})
-		    	url = link['href']
-		    	url = re.sub(r'/ref=.*', '',str(url))
+	try:
+	    results = soup.findAll('div',attrs={'class':'s-item-container'})
+	    print(len(results))
+	    #print(results)
+	    for a,b in enumerate(results):
+	    	#print(b)
+	    	soup = b
+	    	header = soup.find('h2')
+	    	result = a + 1
+	    	title = header.text
+	    	link = soup.find('a',attrs={'class':'a-link-normal s-access-detail-page  a-text-normal'})
+	    	url = link['href']
+	    	url = re.sub(r'/ref=.*', '',str(url))
 
-		    	# Extract the ASIN from the URL
-		    	ASIN = re.sub(r'.*amazon.co.uk.*/dp/', '',str(url))
+	    	# Extract the ASIN from the URL
+	    	ASIN = re.sub(r'.*amazon.co.uk.*/dp/', '',str(url))
 
-		    	# Extract Score Data using ASIN number to find the span class
+	    	# Extract Score Data using ASIN number to find the span class
 
-		    	score = soup.find('span',attrs={'name':ASIN})
-		    	try:
-		    		score = score.text
-		    		score = score.strip('\n')
-		    		score = re.sub(r' .*', '',str(score))
-		    	except:
-		    		score = None
+	    	score = soup.find('span',attrs={'name':ASIN})
+	    	try:
+	    		score = score.text
+	    		score = score.strip('\n')
+	    		score = re.sub(r' .*', '',str(score))
+	    	except:
+	    		score = None
 
-		    	# Extract Number of Reviews in the same way
-		    	reviews = soup.find('a', href=re.compile(r'.*#customerReviews'))
-		    	try:
-		    		reviews = reviews.text
-		    	except:
-		    		reviews = None
+	    	# Extract Number of Reviews in the same way
+	    	reviews = soup.find('a', href=re.compile(r'.*#customerReviews'))
+	    	try:
+	    		reviews = reviews.text
+	    	except:
+	    		reviews = None
 
-		    	# And again for Prime
+	    	# And again for Prime
 
-		    	PRIME = soup.find('i',attrs={'aria-label':'Prime'})
-		    	try:
-		    		PRIME = PRIME.text
-		    	except:
-		    		PRIME = None
+	    	PRIME = soup.find('i',attrs={'aria-label':'Prime'})
+	    	try:
+	    		PRIME = PRIME.text
+	    	except:
+	    		PRIME = None
 
-		    	# Test Statements
-		    	# print(title.decode('utf-8'))
-		    	# print(url)
-		    	# print(ASIN)
-		    	# print(reviews)
-		    	# print(prime)
+	    	# Test Statements
+	    	# print(title.decode('utf-8'))
+	    	# print(url)
+	    	# print(ASIN)
+	    	# print(reviews)
+	    	# print(prime)
 
-		    	# Save to dict for multithreading test
+	    	# Save to dict for multithreading test
 
-		    	data['Date'].append(date)
-		    	data['Unix'].append(unix)
-		    	data['Keyword'].append(i)
-		    	data['Title'].append(title)
-		    	data['Review_Score'].append(score)
-		    	data['ASIN'].append(ASIN)
-		    	data['Rank'].append(result)
-		    	data['URL'].append(url)
-		    	data['Prime'].append(PRIME)
+	    	data = defaultdict(list)
 
-		    	c.execute("INSERT INTO multi VALUES (?,?, ?, ?,?, ?, ?,?,?)",
-                          (date, unix, i ,title, score, ASIN, result, url, PRIME))
-		    	conn.commit()
-		except Exception as e:
-		    print(e)
-		driver.quit()
+	    	data['Date'].append(date)
+	    	data['Unix'].append(unix)
+	    	data['Keyword'].append(i)
+	    	data['Title'].append(title)
+	    	data['Review_Score'].append(score)
+	    	data['ASIN'].append(ASIN)
+	    	data['Rank'].append(result)
+	    	data['URL'].append(url)
+	    	data['Prime'].append(PRIME)
 
-ranks()
-print(data)
+	    	db.collection.insert(data)
+
+	    	#c.execute("INSERT INTO multi VALUES (?,?, ?, ?,?, ?, ?,?,?)",
+            #          (date, unix, i ,title, score, ASIN, result, url, PRIME))
+	    	#conn.commit()
+	except Exception as e:
+	    print(e)
+	driver.quit()
+
+futures = []
+with ThreadPoolExecutor(max_workers=3) as ex:
+    for keyword in keywords:
+        futures.append(ex.submit(ranks,keyword))
+
 conn.close()
