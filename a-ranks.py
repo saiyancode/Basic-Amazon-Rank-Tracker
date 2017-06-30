@@ -1,6 +1,3 @@
-from random import choice
-import requests
-from requests.auth import HTTPBasicAuth
 from bs4 import BeautifulSoup
 import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -8,120 +5,100 @@ import sqlite3 as sql
 import time
 from selenium import webdriver
 import re
-from collections import defaultdict
-import pymongo
 from pymongo import MongoClient
-from threading import Thread
-
-# Mongo Settings
-
-client = MongoClient('localhost', 27017)
-db = client.test_database
-collection = db.test_collection
-
 
 unix = int(time.time())
 date = str(datetime.datetime.fromtimestamp(unix).strftime('%Y-%m-%d'))
 keyword = [line.rstrip('\n') for line in open('keywords.txt')]
-keywords = [str.replace(x,' ','+') for x in keyword]
-AgentList = ["Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36",
-             "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.84 Safari/537.36",
-             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/601.6.17 (KHTML, like Gecko) Version/9.1.1 Safari/601.6.17",
-             "Mozilla/5.0 (X11; U; Linux x86_64; de; rv:1.9.2.8) Gecko/20100723 Ubuntu/10.04 (lucid) Firefox/3.6.8",
-             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:34.0) Gecko/20100101 Firefox/34.0"]
-conn = sql.connect(r'Rankings-multi.db')
-c = conn.cursor()
+keywords = [str.replace(x, ' ', '+') for x in keyword]
 
-def create_table():
-    c.execute("CREATE TABLE IF NOT EXISTS multi(datestamp TEXT, unix TEXT, Keyword TEXT, title TEXT, stars REAL, ASIN TEXT, rank TEXT, url TEXT, Prime TEXT)")
-create_table()
+# Mongo Settings
 
-data = defaultdict(list)
+client = MongoClient('localhost', 27017)
+db = client.Amazon
 
 def ranks(i):
-	#driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
-	driver = webdriver.PhantomJS(executable_path='/Users/willcecil/Dropbox/Python/phantomjs')
-	url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords='+i
-	driver.get(url)
-	time.sleep(1)
-	soup = BeautifulSoup(driver.page_source)
-	print("Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords='+i)
+    driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
+    #driver = webdriver.PhantomJS(executable_path='/Users/willcecil/Dropbox/Python/phantomjs')
+    url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords=' + i
+    driver.get(url)
+    time.sleep(1)
+    soup = BeautifulSoup(driver.page_source)
+    print(
+        "Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords=' + i)
 
-	try:
-	    results = soup.findAll('div',attrs={'class':'s-item-container'})
-	    print(len(results))
-	    #print(results)
-	    for a,b in enumerate(results):
-	    	#print(b)
-	    	soup = b
-	    	header = soup.find('h2')
-	    	result = a + 1
-	    	title = header.text
-	    	link = soup.find('a',attrs={'class':'a-link-normal s-access-detail-page  a-text-normal'})
-	    	url = link['href']
-	    	url = re.sub(r'/ref=.*', '',str(url))
+    results = soup.findAll('div', attrs={'class': 's-item-container'})
+    print(len(results))
+    # print(results)
+    for a, b in enumerate(results):
+        try:
+            # print(b)
+            soup = b
+            header = soup.find('h2')
+            result = a + 1
+            title = header.text
+            try:
+                link = soup.find('a', attrs={'class': 'a-link-normal a-text-normal'})
+                url = link['href']
+                url = re.sub(r'/ref=.*', '', str(url))
+            except:
+                url = None
 
-	    	# Extract the ASIN from the URL
-	    	ASIN = re.sub(r'.*amazon.co.uk.*/dp/', '',str(url))
+            print(url)
 
-	    	# Extract Score Data using ASIN number to find the span class
+            # Extract the ASIN from the URL - ASIN is the breaking point to filter out if the position is sponsored
 
-	    	score = soup.find('span',attrs={'name':ASIN})
-	    	try:
-	    		score = score.text
-	    		score = score.strip('\n')
-	    		score = re.sub(r' .*', '',str(score))
-	    	except:
-	    		score = None
+            ASIN = re.sub(r'.*amazon.co.uk.*/dp/', '', str(url))
 
-	    	# Extract Number of Reviews in the same way
-	    	reviews = soup.find('a', href=re.compile(r'.*#customerReviews'))
-	    	try:
-	    		reviews = reviews.text
-	    	except:
-	    		reviews = None
+            # Extract Score Data using ASIN number to find the span class
 
-	    	# And again for Prime
+            score = soup.find('span', attrs={'name': ASIN})
+            try:
+                score = score.text
+                score = score.strip('\n')
+                score = re.sub(r' .*', '', str(score))
+            except:
+                score = None
 
-	    	PRIME = soup.find('i',attrs={'aria-label':'Prime'})
-	    	try:
-	    		PRIME = PRIME.text
-	    	except:
-	    		PRIME = None
+            # Extract Number of Reviews in the same way
+            reviews = soup.find('a', href=re.compile(r'.*#customerReviews'))
+            try:
+                reviews = reviews.text
+            except:
+                reviews = None
 
-	    	# Test Statements
-	    	# print(title.decode('utf-8'))
-	    	# print(url)
-	    	# print(ASIN)
-	    	# print(reviews)
-	    	# print(prime)
+            # And again for Prime
 
-	    	# Save to dict for multithreading test
+            PRIME = soup.find('i', attrs={'aria-label': 'Prime'})
+            try:
+                PRIME = PRIME.text
+            except:
+                PRIME = None
 
-	    	data = defaultdict(list)
+            # Save to dict for multithreading test
 
-	    	data['Date'].append(date)
-	    	data['Unix'].append(unix)
-	    	data['Keyword'].append(i)
-	    	data['Title'].append(title)
-	    	data['Review_Score'].append(score)
-	    	data['ASIN'].append(ASIN)
-	    	data['Rank'].append(result)
-	    	data['URL'].append(url)
-	    	data['Prime'].append(PRIME)
+            data = dict.fromkeys(['Date', 'Unix', 'Keyword', 'Title', 'Review_Score', 'ASIN', 'Rank', 'URL', 'Prime'])
 
-	    	db.collection.insert(data)
+            data['Date'] = date
+            data['Unix'] = unix
+            data['Keyword'] = i
+            data['Title'] = title
+            data['Review_Score'] = score
+            data['ASIN'] = ASIN
+            data['Rank'] = result
+            data['URL'] = url
+            data['Prime'] = PRIME
 
-	    	#c.execute("INSERT INTO multi VALUES (?,?, ?, ?,?, ?, ?,?,?)",
-            #          (date, unix, i ,title, score, ASIN, result, url, PRIME))
-	    	#conn.commit()
-	except Exception as e:
-	    print(e)
-	driver.quit()
+            db.amazon_ranks.insert(data)
+
+        except Exception as e:
+            print(e)
+    driver.quit()
+
 
 futures = []
-with ThreadPoolExecutor(max_workers=3) as ex:
-    for keyword in keywords:
-        futures.append(ex.submit(ranks,keyword))
 
-conn.close()
+if __name__ == "__main__":
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        for keyword in keywords:
+            futures.append(ex.submit(ranks, keyword))
