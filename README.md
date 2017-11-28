@@ -5,7 +5,7 @@ I needed to scrape some data in order to understand performance of products on A
 # Requirements
 
   - Chrome or PhantomJS drivers
-  - Selenium & BeautifulSoup, MongoDB if using the multithread version
+  - Selenium & BeautifulSoup
 
 # Setup
 
@@ -18,12 +18,12 @@ $ pip install beautifulsoup4
 The you'll need to update the keyword list within the keywords.txt file
 
 ```sh
-conn = sql.connect(r'Rankings-test.db') # this can be changed to rename the database
 driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver') # this needs to be updated to your driver location
 ```
 Having done that everything should run as planned. 
 
-Install guides for monogodb
-[Install Mongo on MacOSX](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-os-x/) 
+You will need to edit the keywords.txt file and add your keywords one per line
+
+This is configured for Amazon UK in this example but if you change the domain to another market e.g. .com it will run there too!
 
 Any questions hit me up on twitter (@willceciltech) or open an issue!
