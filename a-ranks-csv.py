@@ -1,50 +1,43 @@
-from random import choice
-import requests
-from requests.auth import HTTPBasicAuth
 from bs4 import BeautifulSoup
-import datetime
-import pandas as pd
-import numpy as np
-import pandas.io.sql as pd_sql
-from concurrent.futures import ThreadPoolExecutor
-import sqlite3 as sql
 import time
 from selenium import webdriver
 import re
-
-unix = int(time.time())
-date = str(datetime.datetime.fromtimestamp(unix).strftime('%Y-%m-%d'))
-keyword = [line.rstrip('\n') for line in open('keywords.txt')]
-keywords = [str.replace(x, ' ', '+') for x in keyword]
-conn = sql.connect(r'Rankings-test.db')
-c = conn.cursor()
+import datetime
+from collections import deque
+import logging
+import csv
 
 
-def create_table():
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS amazon_rankings(datestamp TEXT, unix TEXT, Keyword TEXT, title TEXT, stars REAL, ASIN TEXT, rank TEXT, url TEXT, Prime TEXT)")
+class AmazonScaper(object):
+
+    def __init__(self,keywords, output_file='example.csv',sleep=2):
+
+        self.browser = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')  #Add path to your Chromedriver
+        self.keyword_queue = deque(keywords)  #Add the start URL to our list of URLs to crawl
+        self.output_file = output_file
+        self.sleep = sleep
+        self.results = []
 
 
-create_table()
+    def get_page(self, keyword):
+        try:
+            self.browser.get('https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords={a}'.format(a=keyword))
+            return self.browser.page_source
+        except Exception as e:
+            logging.exception(e)
+            return
 
+    def get_soup(self, html):
+        if html is not None:
+            soup = BeautifulSoup(html, 'lxml')
+            return soup
+        else:
+            return
 
-def ranks():
-    for i in keywords:
-        # driver = webdriver.Chrome(executable_path=r'C:\Users\w.cecil\Python35\chromedriver.exe')
-        driver = webdriver.Chrome(executable_path='/Users/willcecil/Dropbox/Python/chromedriver')
-        # driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
-        # driver = webdriver.PhantomJS(executable_path=r'C:\Users\w.cecil\Python35\phantomjs-2.1.1-windows\bin\phantomjs.exe') # or add to your PATH
-        url = 'https://www.amazon.co.uk/s/url=search-alias%3Daps&field-keywords=' + i
-        driver.get(url)
-        time.sleep(5)
-        soup = BeautifulSoup(driver.page_source)
-        print(
-            "Opening this page " + 'https://www.amazon.co.uk/s/ref=nb_sb_noss_2?url=search-alias%3Daps&field-keywords=' + i)
+    def get_data(self,soup,keyword):
 
         try:
             results = soup.findAll('div', attrs={'class': 's-item-container'})
-            print(len(results))
-            # print(results)
             for a, b in enumerate(results):
                 soup = b
                 header = soup.find('h2')
@@ -55,9 +48,7 @@ def ranks():
                     url = link['href']
                     url = re.sub(r'/ref=.*', '', str(url))
                 except:
-                    url = None
-
-                print(url)
+                    url = "None"
 
                 # Extract the ASIN from the URL - ASIN is the breaking point to filter out if the position is sponsored
 
@@ -71,14 +62,14 @@ def ranks():
                     score = score.strip('\n')
                     score = re.sub(r' .*', '', str(score))
                 except:
-                    score = None
+                    score = "None"
 
                 # Extract Number of Reviews in the same way
                 reviews = soup.find('a', href=re.compile(r'.*#customerReviews'))
                 try:
                     reviews = reviews.text
                 except:
-                    reviews = None
+                    reviews = "None"
 
                 # And again for Prime
 
@@ -86,22 +77,42 @@ def ranks():
                 try:
                     PRIME = PRIME.text
                 except:
-                    PRIME = None
+                    PRIME = "None"
 
-                # Test Statements
-                # print(title.decode('utf-8'))
-                # print(url)
-                # print(ASIN)
-                # print(reviews)
-                # print(prime)
-                c.execute("INSERT INTO amazon_rankings VALUES (?,?, ?, ?,?, ?, ?,?,?)",
-                          (date, unix, i, title, score, ASIN, result, url, PRIME))
-                conn.commit()
+                data = {keyword:[keyword,str(result),title,ASIN,score,reviews,PRIME,datetime.datetime.today().strftime("%B %d, %Y")]}
+                self.results.append(data)
+
         except Exception as e:
             print(e)
-        driver.quit()
+
+        return 1
+
+    def csv_output(self):
+        keys = ['Keyword','Rank','Title','ASIN','Score','Reviews','Prime','Date']
+        print(self.results)
+        with open(self.output_file, 'a', encoding='utf-8') as outputfile:
+            dict_writer = csv.DictWriter(outputfile, keys)
+            dict_writer.writeheader()
+            for item in self.results:
+                for key,value in item.items():
+                    print(".".join(value))
+                    outputfile.write(",".join('"' + item + '"' for item in value)+"\n") # Add "" quote character so the CSV accepts commas
+
+    def run_crawler(self):
+        while len(self.keyword_queue): #If we have keywords to check
+            keyword = self.keyword_queue.popleft() #We grab a keyword from the left of the list
+            html = self.get_page(keyword)
+            soup = self.get_soup(html)
+            time.sleep(self.sleep) # Wait for the specified time
+            if soup is not None:  #If we have soup - parse and save data
+                self.get_data(soup,keyword)
+        self.browser.quit()
+        self.csv_output() # Save the object data to csv
 
 
-ranks()
+if __name__ == "__main__":
+    keywords = [str.replace(line.rstrip('\n'),' ','+') for line in open('keywords.txt')] # Use our file of keywords & replaces spaces with +
+    ranker = AmazonScaper(keywords) # Create the object
+    ranker.run_crawler() # Run the rank checker
 
-conn.close()
+
